@@ -13,6 +13,10 @@ public class TxHandler {
     public TxHandler(UTXOPool utxoPool) {
         this.utxoPool = new UTXOPool(utxoPool);
     }
+    
+    public UTXOPool getUTXOPool() {
+    		return this.utxoPool;
+    }
 
     /**
      * @return true if:
