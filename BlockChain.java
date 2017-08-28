@@ -22,10 +22,25 @@ public class BlockChain {
      */
     public BlockChain(Block genesisBlock) {
     	    blocks.put(genesisBlock.getHash(), genesisBlock);
-    	    blockUtxoPoolMap.put(genesisBlock.getHash(), new UTXOPool());
+
+    	    TxHandler txHandler = new TxHandler(new UTXOPool());
+    	    
+    	    ArrayList<Transaction> txs = genesisBlock.getTransactions();
+    	    txHandler.handleTxs(txs.toArray(new Transaction[txs.size()]));
+    	    UTXOPool utxoPool = txHandler.getUTXOPool();
+    	    addCoinbaseToUtxoPool(genesisBlock.getCoinbase(), utxoPool);
+    	    
+    	    blockUtxoPoolMap.put(genesisBlock.getHash(), utxoPool);
     	    blockHeightMap.put(genesisBlock.getHash(), 1);
     	    maxBlockHeight = 1;
     	    maxHeightBlockHash = genesisBlock.getHash();
+    }
+    
+    private void addCoinbaseToUtxoPool(Transaction coinbase, UTXOPool utxoPool) {
+    	    ArrayList<Transaction.Output> txOutputs = coinbase.getOutputs();
+    	    for (int i = 0; i < txOutputs.size(); i++) {
+    	    	    utxoPool.addUTXO(new UTXO(coinbase.getHash(), i), txOutputs.get(i));
+    	    }
     }
 
     /** Get the maximum height block */
@@ -62,16 +77,16 @@ public class BlockChain {
      * @return true if block is successfully added
      */
     public boolean addBlock(Block block) {
-        if (block.getPrevBlockHash() == null) {
+    	    byte[] prevBlockHash = block.getPrevBlockHash();
+        if (prevBlockHash == null) {
         		return false;
         }
-        
+
         Transaction coinbase = block.getCoinbase();
         if (!coinbase.isCoinbase() || coinbase.getOutput(0).value != Block.COINBASE) {
         	    return false;
         }
-        
-        byte[] prevBlockHash = block.getPrevBlockHash();
+
         if (!blocks.containsKey(prevBlockHash)) {
         	    return false;
         }
@@ -85,13 +100,10 @@ public class BlockChain {
         TxHandler txHandler = new TxHandler(utxoPool);
         
         ArrayList<Transaction> txs = block.getTransactions();
-        for (Transaction tx : txs) {
-        	    if (!txHandler.isValidTx(tx)) {
-        	    	    return false;
-        	    }
+        Transaction[] validTxs = txHandler.handleTxs(txs.toArray(new Transaction[txs.size()]));
+        if (validTxs.length < txs.size()) {
+        	    return false;
         }
-        
-        txHandler.handleTxs((Transaction[])txs.toArray(new Transaction[txs.size()]));
 
         blocks.put(block.getHash(), block);
         blockHeightMap.put(block.getHash(), prevBlockHeight + 1);
