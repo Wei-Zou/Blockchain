@@ -78,26 +78,31 @@ public class BlockChain {
      */
     public boolean addBlock(Block block) {
     	    byte[] prevBlockHash = block.getPrevBlockHash();
+    	    
+    	    // check for Genesis block
         if (prevBlockHash == null) {
         		return false;
         }
 
+        // check for valid coinbase
         Transaction coinbase = block.getCoinbase();
         if (!coinbase.isCoinbase() || coinbase.getOutput(0).value != Block.COINBASE) {
         	    return false;
         }
 
+        // check for valid prevBlockHash pointer
         if (!blocks.containsKey(prevBlockHash)) {
         	    return false;
         }
-        
+
+        // check for valid height
         int prevBlockHeight = blockHeightMap.get(prevBlockHash);
         if (prevBlockHeight < maxBlockHeight - CUT_OFF_AGE) {
         	    return false;
         }
         
-        UTXOPool utxoPool = blockUtxoPoolMap.get(prevBlockHash);
-        TxHandler txHandler = new TxHandler(utxoPool);
+        UTXOPool prevBlockUtxoPool = blockUtxoPoolMap.get(prevBlockHash);
+        TxHandler txHandler = new TxHandler(prevBlockUtxoPool);
         
         ArrayList<Transaction> txs = block.getTransactions();
         Transaction[] validTxs = txHandler.handleTxs(txs.toArray(new Transaction[txs.size()]));
@@ -111,7 +116,11 @@ public class BlockChain {
         	    maxBlockHeight = prevBlockHeight + 1;
         	    maxHeightBlockHash = block.getHash();
         }
-        blockUtxoPoolMap.put(block.getHash(), txHandler.getUTXOPool());
+        
+        UTXOPool utxoPool = txHandler.getUTXOPool();
+        addCoinbaseToUtxoPool(block.getCoinbase(), utxoPool);
+        blockUtxoPoolMap.put(block.getHash(), utxoPool);
+
         txPool = new TransactionPool();
         return true;
     }
